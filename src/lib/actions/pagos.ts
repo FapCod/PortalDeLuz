@@ -64,3 +64,31 @@ export async function eliminarRecibo(reciboId: number) {
     revalidatePath("/admin/dashboard")
     return { success: true }
 }
+
+export async function eliminarRecibosMantenimiento(tarifaId: number) {
+    const supabase = await createClient()
+
+    // Find all recibos for this period that belong to SOLO_MANTENIMIENTO lotes
+    const { data: recibos, error: fetchError } = await supabase
+        .from("recibos")
+        .select("id, lote:lotes!inner(tipo_servicio)")
+        .eq("tarifa_id", tarifaId)
+        .eq("lote.tipo_servicio", "SOLO_MANTENIMIENTO")
+
+    if (fetchError) return { error: fetchError.message }
+    if (!recibos || recibos.length === 0) return { error: "No se encontraron recibos de mantenimiento para este período." }
+
+    const ids = recibos.map((r: { id: number }) => r.id)
+
+    const { error } = await supabase
+        .from("recibos")
+        .delete()
+        .in("id", ids)
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/admin/pagos")
+    revalidatePath("/admin/lecturas")
+    revalidatePath("/admin/dashboard")
+    return { success: true, count: ids.length }
+}

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { Recibo, Lote, TarifaMensual } from "@/types"
 import { formatCurrency, formatLoteCodigo, formatPeriodo } from "@/lib/utils"
-import { marcarPagado, marcarPendiente, eliminarRecibo, editarRecibo } from "@/lib/actions/pagos"
+import { marcarPagado, marcarPendiente, eliminarRecibo, editarRecibo, eliminarRecibosMantenimiento } from "@/lib/actions/pagos"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,7 @@ export function PagosClient({ recibos }: Props) {
     const [page, setPage] = useState(1)
     const [showBulkWA, setShowBulkWA] = useState(false)
     const [bulkIndex, setBulkIndex] = useState(0)
+    const [showDeleteMant, setShowDeleteMant] = useState(false)
     const PER_PAGE = 15
 
     const filtered = recibos.filter((r) => {
@@ -219,6 +220,15 @@ export function PagosClient({ recibos }: Props) {
                 >
                     Solo Mant.
                 </button>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteMant(!showDeleteMant)}
+                    className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 text-xs"
+                >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Eliminar Mant.
+                </Button>
                 <div className="flex-1" />
                 <Button
                     variant="outline"
@@ -233,6 +243,57 @@ export function PagosClient({ recibos }: Props) {
                     Cobrar masivo ({pendientesConCelular.length})
                 </Button>
             </div>
+
+            {/* Delete maintenance by period */}
+            {showDeleteMant && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-red-800 flex items-center gap-2">
+                            <Trash2 className="w-4 h-4" />
+                            Eliminar recibos de mantenimiento por período
+                        </h3>
+                        <Button variant="ghost" size="sm" onClick={() => setShowDeleteMant(false)} className="text-gray-500">
+                            <X className="w-4 h-4" />
+                        </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                        {Array.from(new Set(recibos.map((r) => r.tarifa_id))).map((tarifaId) => {
+                            const tarifa = recibos.find((r) => r.tarifa_id === tarifaId)?.tarifa
+                            const mantCount = recibos.filter(
+                                (r) => r.tarifa_id === tarifaId && r.lote?.tipo_servicio === "SOLO_MANTENIMIENTO"
+                            ).length
+                            if (!tarifa || mantCount === 0) return null
+                            return (
+                                <Button
+                                    key={tarifaId}
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isPending}
+                                    className="border-red-300 text-red-700 hover:bg-red-100 gap-1.5"
+                                    onClick={() => {
+                                        const ok = window.confirm(
+                                            `¿Eliminar los ${mantCount} recibos de SOLO MANTENIMIENTO del período ${formatPeriodo(tarifa.periodo)}?\n\nEsta acción no se puede deshacer.`
+                                        )
+                                        if (!ok) return
+                                        startTransition(async () => {
+                                            const result = await eliminarRecibosMantenimiento(tarifaId)
+                                            if (result.error) {
+                                                window.alert(result.error)
+                                            } else {
+                                                window.alert(`✓ Se eliminaron ${result.count} recibos de mantenimiento.`)
+                                                setShowDeleteMant(false)
+                                            }
+                                        })
+                                    }}
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    {formatPeriodo(tarifa.periodo)} ({mantCount})
+                                </Button>
+                            )
+                        })}
+                    </div>
+                </div>
+            )}
 
             {/* Search */}
             <div className="relative">

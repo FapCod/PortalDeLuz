@@ -17,6 +17,7 @@ import {
     Loader2,
     FileText,
     X,
+    Wrench,
 } from "lucide-react"
 import Papa from "papaparse"
 
@@ -26,7 +27,7 @@ interface Props {
 }
 
 export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
-    const [activeTab, setActiveTab] = useState<"individual" | "csv">("individual")
+    const [activeTab, setActiveTab] = useState<"individual" | "csv" | "mantenimiento">("individual")
 
     // Individual form state
     const [search, setSearch] = useState("")
@@ -45,6 +46,11 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
     >([])
     const [csvError, setCsvError] = useState<string | null>(null)
     const [csvSuccess, setCsvSuccess] = useState<string | null>(null)
+
+    // Maintenance bulk state
+    const [mantKwh, setMantKwh] = useState("5")
+    const [mantSuccess, setMantSuccess] = useState<string | null>(null)
+    const [mantError, setMantError] = useState<string | null>(null)
 
     const filteredLotes = lotes.filter((l) => {
         const q = search.toLowerCase()
@@ -148,6 +154,30 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
         })
     }
 
+    const mantLotes = lotes.filter((l) => l.tipo_servicio === "SOLO_MANTENIMIENTO")
+    const mantKwhNum = parseFloat(mantKwh) || 0
+    const mantPreview = selectedTarifa
+        ? calcularTotal(mantKwhNum, selectedTarifa.precio_kwh, selectedTarifa.costo_alumbrado)
+        : null
+
+    function handleMantBulk() {
+        if (!selectedTarifa || mantLotes.length === 0 || mantKwhNum <= 0) return
+        setMantError(null)
+        setMantSuccess(null)
+        startTransition(async () => {
+            const lecturas = mantLotes.map((l) => ({
+                lote_id: l.id,
+                consumo_kwh: mantKwhNum,
+            }))
+            const result = await importarLecturas(selectedTarifa.id, lecturas)
+            if (result.error) {
+                setMantError(result.error)
+            } else {
+                setMantSuccess(`✓ Se registraron ${result.count} lecturas de mantenimiento con ${mantKwhNum} KWH cada una.`)
+            }
+        })
+    }
+
     if (tarifasAbiertas.length === 0) {
         return (
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
@@ -172,8 +202,8 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                                 key={t.id}
                                 onClick={() => setSelectedTarifa(t)}
                                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors cursor-pointer ${selectedTarifa?.id === t.id
-                                        ? "bg-blue-600 text-white"
-                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                                     }`}
                             >
                                 {formatPeriodo(t.periodo)}
@@ -193,8 +223,8 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                 <button
                     onClick={() => setActiveTab("individual")}
                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors cursor-pointer ${activeTab === "individual"
-                            ? "border-blue-600 text-blue-600"
-                            : "border-transparent text-gray-500 hover:text-gray-700"
+                        ? "border-blue-600 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
                         }`}
                 >
                     <Zap className="w-4 h-4 inline mr-1.5" />
@@ -203,12 +233,22 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                 <button
                     onClick={() => setActiveTab("csv")}
                     className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors cursor-pointer ${activeTab === "csv"
-                            ? "border-blue-600 text-blue-600"
-                            : "border-transparent text-gray-500 hover:text-gray-700"
+                        ? "border-blue-600 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
                         }`}
                 >
                     <Upload className="w-4 h-4 inline mr-1.5" />
                     Importar CSV
+                </button>
+                <button
+                    onClick={() => setActiveTab("mantenimiento")}
+                    className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors cursor-pointer ${activeTab === "mantenimiento"
+                        ? "border-blue-600 text-blue-600"
+                        : "border-transparent text-gray-500 hover:text-gray-700"
+                        }`}
+                >
+                    <Wrench className="w-4 h-4 inline mr-1.5" />
+                    Mantenimiento masivo
                 </button>
             </div>
 
@@ -463,6 +503,119 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* Mantenimiento Tab */}
+            {activeTab === "mantenimiento" && (
+                <Card>
+                    <CardContent className="p-6 space-y-4">
+                        <div>
+                            <h3 className="font-semibold text-gray-900">Lecturas masivas — Solo Mantenimiento</h3>
+                            <p className="text-sm text-gray-500 mt-1">
+                                Registra la lectura de todos los lotes de mantenimiento con un mismo valor de KWH.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                                KWH por defecto:
+                            </label>
+                            <Input
+                                type="number"
+                                min={0}
+                                step="0.01"
+                                value={mantKwh}
+                                onChange={(e) => setMantKwh(e.target.value)}
+                                className="w-28"
+                            />
+                            {mantPreview && (
+                                <span className="text-sm text-gray-500">
+                                    = S/ {mantPreview.totalRecibo} c/u
+                                </span>
+                            )}
+                        </div>
+
+                        {mantLotes.length === 0 ? (
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-sm text-yellow-700">
+                                <AlertCircle className="w-4 h-4 inline mr-1" />
+                                No hay lotes con tipo "Solo Mantenimiento".
+                            </div>
+                        ) : (
+                            <>
+                                <div className="overflow-x-auto rounded-lg border bg-white">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-gray-50 text-xs">
+                                            <tr>
+                                                <th className="text-left px-4 py-2 font-medium text-gray-600">Lote</th>
+                                                <th className="text-left px-4 py-2 font-medium text-gray-600">Propietario</th>
+                                                <th className="text-right px-4 py-2 font-medium text-gray-600">KWH</th>
+                                                <th className="text-right px-4 py-2 font-medium text-gray-600">Total S/</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {mantLotes.map((l) => (
+                                                <tr key={l.id} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-2 font-mono text-xs text-gray-600">
+                                                        {formatLoteCodigo(l.manzana, l.lote_numero)}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-gray-900">
+                                                        {l.nombres} {l.apellidos}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-gray-700">
+                                                        {mantKwhNum}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right font-semibold text-blue-700">
+                                                        {mantPreview ? `S/ ${mantPreview.totalRecibo}` : "—"}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="flex items-center justify-between bg-gray-50 border rounded-lg px-4 py-3">
+                                    <p className="text-sm text-gray-700">
+                                        <strong>{mantLotes.length}</strong> lotes × {mantKwhNum} KWH
+                                        {mantPreview && (
+                                            <> = <strong className="text-blue-700">S/ {(mantPreview.totalRecibo * mantLotes.length).toFixed(2)}</strong> total</>
+                                        )}
+                                    </p>
+                                    <Button onClick={handleMantBulk} disabled={isPending || mantKwhNum <= 0 || !!mantSuccess}>
+                                        {isPending ? (
+                                            <>
+                                                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                                                Registrando...
+                                            </>
+                                        ) : mantSuccess ? (
+                                            <>
+                                                <CheckCircle className="w-4 h-4 mr-1" />
+                                                Registrado ✓
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Wrench className="w-4 h-4 mr-1" />
+                                                Registrar todos ({mantLotes.length})
+                                            </>
+                                        )}
+                                    </Button>
+                                </div>
+                            </>
+                        )}
+
+                        {mantError && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                                <AlertCircle className="w-4 h-4 inline mr-1" />
+                                {mantError}
+                            </div>
+                        )}
+                        {mantSuccess && (
+                            <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
+                                <CheckCircle className="w-4 h-4 inline mr-1" />
+                                {mantSuccess}
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
             )}
         </div>
     )
