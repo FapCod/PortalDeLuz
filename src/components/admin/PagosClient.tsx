@@ -103,8 +103,9 @@ export function PagosClient({ recibos }: Props) {
         const nombre = r.lote?.nombres ?? ""
         const codigo = formatLoteCodigo(r.lote?.manzana ?? "", r.lote?.lote_numero ?? 0)
         const periodo = r.tarifa ? formatPeriodo(r.tarifa.periodo) : ""
+        const portalUrl = `${process.env.NEXT_PUBLIC_URL ?? "https://portal-de-luz.vercel.app"}/consulta`
         const mensaje = encodeURIComponent(
-            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por S/ ${r.total_recibo} está pendiente de pago. Lote: ${codigo}. \n\nUPIS Las Palmeras del Sol`
+            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por S/ ${r.total_recibo} está pendiente de pago. Lote: ${codigo}. \n\nConsulte su recibo aquí:\n${portalUrl}\n\nUPIS Las Palmeras del Sol`
         )
         window.open(`https://wa.me/51${celular}?text=${mensaje}`, "_blank")
     }
@@ -129,8 +130,9 @@ export function PagosClient({ recibos }: Props) {
         const nombre = r.lote?.nombres ?? ""
         const codigo = formatLoteCodigo(r.lote?.manzana ?? "", r.lote?.lote_numero ?? 0)
         const periodo = r.tarifa ? formatPeriodo(r.tarifa.periodo) : ""
+        const portalUrl = `${process.env.NEXT_PUBLIC_URL ?? "https://portal-de-luz.vercel.app"}/consulta`
         const mensaje = encodeURIComponent(
-            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por S/ ${r.total_recibo} está pendiente de pago. Lote: ${codigo}. \n\nUPIS Las Palmeras del Sol`
+            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por S/ ${r.total_recibo} está pendiente de pago. Lote: ${codigo}. \n\nConsulte su recibo aquí:\n${portalUrl}\n\nUPIS Las Palmeras del Sol`
         )
         window.open(`https://wa.me/51${celular}?text=${mensaje}`, "_blank")
         setBulkIndex(bulkIndex + 1)
