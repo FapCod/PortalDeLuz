@@ -120,7 +120,14 @@ export function AdminSidebar() {
                         <nav className="space-y-1">
                             <NavLinks />
                         </nav>
-                        <div className="border-t mt-4 pt-4">
+                        <div className="border-t mt-4 pt-4 space-y-2">
+                            <Link
+                                href="/consulta"
+                                onClick={() => setMobileOpen(false)}
+                                className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition-colors"
+                            >
+                                Vista pública
+                            </Link>
                             <button
                                 onClick={handleLogout}
                                 className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-red-500 hover:bg-red-50 transition-colors w-full"

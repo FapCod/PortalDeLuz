@@ -232,7 +232,7 @@ export function LotesClient({ lotes }: Props) {
                                         maxLength={2}
                                         value={form.manzana}
                                         onChange={(e) =>
-                                            setForm({ ...form, manzana: e.target.value })
+                                            setForm({ ...form, manzana: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase() })
                                         }
                                         required
                                         className="bg-white uppercase"
@@ -290,7 +290,7 @@ export function LotesClient({ lotes }: Props) {
                                         placeholder="Ej: EMER DAVID"
                                         value={form.nombres}
                                         onChange={(e) =>
-                                            setForm({ ...form, nombres: e.target.value })
+                                            setForm({ ...form, nombres: e.target.value.replace(/[^A-Za-záéíóúñÁÉÍÓÚÑ\s]/g, "").toUpperCase() })
                                         }
                                         required
                                         className="bg-white"
@@ -304,7 +304,7 @@ export function LotesClient({ lotes }: Props) {
                                         placeholder="Ej: DE LA CRUZ CORDOVA"
                                         value={form.apellidos}
                                         onChange={(e) =>
-                                            setForm({ ...form, apellidos: e.target.value })
+                                            setForm({ ...form, apellidos: e.target.value.replace(/[^A-Za-záéíóúñÁÉÍÓÚÑ\s]/g, "").toUpperCase() })
                                         }
                                         required
                                         className="bg-white"
