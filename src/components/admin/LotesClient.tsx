@@ -57,6 +57,8 @@ export function LotesClient({ lotes }: Props) {
     const [errorMsg, setErrorMsg] = useState<string | null>(null)
     const [isPending, startTransition] = useTransition()
     const formRef = useRef<HTMLDivElement>(null)
+    const [page, setPage] = useState(1)
+    const PER_PAGE = 15
 
     const filtered = lotes.filter((l) => {
         const q = search.toLowerCase()
@@ -67,6 +69,10 @@ export function LotesClient({ lotes }: Props) {
         const matchTipo = filtroTipo === "TODOS" || l.tipo_servicio === filtroTipo
         return matchSearch && matchTipo
     })
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+    const safePage = Math.min(page, totalPages)
+    const paginated = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
 
     const habitadoCount = lotes.filter((l) => l.tipo_servicio === "HABITADO").length
     const mantenimientoCount = lotes.filter((l) => l.tipo_servicio === "SOLO_MANTENIMIENTO").length
@@ -158,7 +164,7 @@ export function LotesClient({ lotes }: Props) {
                     <Input
                         placeholder="Buscar por nombre, código (A1) o DNI..."
                         value={search}
-                        onChange={(e) => setSearch(e.target.value)}
+                        onChange={(e) => { setSearch(e.target.value); setPage(1) }}
                         className="pl-9"
                     />
                 </div>
@@ -396,7 +402,7 @@ export function LotesClient({ lotes }: Props) {
                                 </td>
                             </tr>
                         )}
-                        {filtered.map((lote) => (
+                        {paginated.map((lote) => (
                             <tr key={lote.id} className="hover:bg-gray-50 transition-colors">
                                 <td className="px-4 py-3 font-mono text-xs font-semibold text-gray-700">
                                     {formatLoteCodigo(lote.manzana, lote.lote_numero)}
@@ -450,6 +456,38 @@ export function LotesClient({ lotes }: Props) {
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+                <div className="flex items-center justify-between pt-2">
+                    <p className="text-xs text-gray-500">
+                        Mostrando {(safePage - 1) * PER_PAGE + 1}–{Math.min(safePage * PER_PAGE, filtered.length)} de {filtered.length}
+                    </p>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={safePage <= 1}
+                            onClick={() => setPage(safePage - 1)}
+                            className="text-xs h-8"
+                        >
+                            ← Anterior
+                        </Button>
+                        <span className="text-xs text-gray-600">
+                            {safePage} / {totalPages}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={safePage >= totalPages}
+                            onClick={() => setPage(safePage + 1)}
+                            className="text-xs h-8"
+                        >
+                            Siguiente →
+                        </Button>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
