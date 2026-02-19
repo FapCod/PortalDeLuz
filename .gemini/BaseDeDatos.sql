@@ -69,11 +69,11 @@ CREATE TABLE recibos (
             (consumo_kwh * precio_x_kwh) + alumbrado_publico
         ) STORED,
 
-    -- Equivalente a la Columna K del Excel: redondeado HACIA ARRIBA (CEIL)
-    -- Ej: 14.3 → 15, no 14
+    -- Equivalente a la Columna K del Excel: redondeo estándar (ROUND)
+    -- Ej: 14.30 → 14, 14.40 → 14, 14.50 → 15
     total_recibo      INTEGER
         GENERATED ALWAYS AS (
-            CEIL((consumo_kwh * precio_x_kwh) + alumbrado_publico)
+            ROUND((consumo_kwh * precio_x_kwh) + alumbrado_publico)
         ) STORED,
 
     estado            estado_pago   DEFAULT 'PENDIENTE',
@@ -86,7 +86,7 @@ CREATE TABLE recibos (
 
 COMMENT ON TABLE recibos IS 'Historial de consumo y cobros por lote por mes.';
 COMMENT ON COLUMN recibos.precio_x_kwh IS 'Snapshot del precio al momento de crear el recibo. No cambia si sube la tarifa.';
-COMMENT ON COLUMN recibos.total_recibo IS 'Total redondeado HACIA ARRIBA (CEIL). Calculado automáticamente por PostgreSQL.';
+COMMENT ON COLUMN recibos.total_recibo IS 'Total con redondeo estándar (ROUND): <0.50 redondea abajo, ≥0.50 redondea arriba. Calculado automáticamente por PostgreSQL.';
 
 -- ============================================================
 -- 5. ÍNDICES para búsquedas frecuentes
@@ -151,3 +151,38 @@ CREATE POLICY "Admin puede actualizar recibos"
 
 -- INSERT INTO tarifas_mensuales (periodo, precio_kwh, costo_alumbrado, estado) VALUES
 --     ('2026-02-01', 0.86, 10.00, 'ABIERTO');
+
+
+-- Permitir eliminar lotes a usuarios autenticados
+CREATE POLICY "Autenticados pueden eliminar lotes"
+ON lotes FOR DELETE
+TO authenticated
+USING (true);
+
+-- Permitir eliminar recibos a usuarios autenticados
+CREATE POLICY "Autenticados pueden eliminar recibos"
+ON recibos FOR DELETE
+TO authenticated
+USING (true);
+
+-- Permitir eliminar tarifas a usuarios autenticados
+CREATE POLICY "Autenticados pueden eliminar tarifas"
+ON tarifas_mensuales FOR DELETE
+TO authenticated
+USING (true);
+
+
+-- Quitar la restricción UNIQUE del DNI para permitir que una persona tenga varios lotes
+ALTER TABLE lotes DROP CONSTRAINT IF EXISTS lotes_dni_key;
+
+-- Mantener el índice para búsquedas rápidas por DNI (sin unicidad)
+DROP INDEX IF EXISTS idx_lotes_dni;
+CREATE INDEX idx_lotes_dni ON lotes(dni);
+
+
+-- Quitar la restricción UNIQUE del DNI para permitir que una persona tenga varios lotes
+ALTER TABLE lotes DROP CONSTRAINT IF EXISTS lotes_dni_key;
+
+-- Mantener el índice para búsquedas rápidas por DNI (sin unicidad)
+DROP INDEX IF EXISTS idx_lotes_dni;
+CREATE INDEX idx_lotes_dni ON lotes(dni);

@@ -19,7 +19,8 @@ export function formatCurrency(amount: number): string {
 /**
  * Calculates the total receipt amount
  * Formula: ROUND((consumo * precioKwh) + alumbrado)
- * Uses standard rounding to match the Excel behavior (14.3 → 14)
+ * Uses standard rounding: <0.50 rounds down, ≥0.50 rounds up
+ * Example: 14.30 → 14, 14.40 → 14, 14.50 → 15
  */
 export function calcularTotal(
     consumoKwh: number,
@@ -27,7 +28,7 @@ export function calcularTotal(
     alumbrado: number
 ): { totalConsumo: number; totalRecibo: number } {
     const totalConsumo = consumoKwh * precioKwh + alumbrado
-    const totalRecibo = Math.ceil(totalConsumo)
+    const totalRecibo = Math.round(totalConsumo)
     return { totalConsumo, totalRecibo }
 }
 
