@@ -32,3 +32,35 @@ export async function marcarPendiente(reciboId: number) {
     revalidatePath("/admin/dashboard")
     return { success: true }
 }
+
+export async function editarRecibo(reciboId: number, consumoKwh: number) {
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from("recibos")
+        .update({ consumo_kwh: consumoKwh })
+        .eq("id", reciboId)
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/admin/pagos")
+    revalidatePath("/admin/lecturas")
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+}
+
+export async function eliminarRecibo(reciboId: number) {
+    const supabase = await createClient()
+
+    const { error } = await supabase
+        .from("recibos")
+        .delete()
+        .eq("id", reciboId)
+
+    if (error) return { error: error.message }
+
+    revalidatePath("/admin/pagos")
+    revalidatePath("/admin/lecturas")
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+}

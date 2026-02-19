@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useRef } from "react"
 import { Lote, EstadoLote } from "@/types"
 import { formatLoteCodigo } from "@/lib/utils"
-import { crearLote, actualizarLote, LoteFormData } from "@/lib/actions/lotes"
+import { crearLote, actualizarLote, eliminarLote, LoteFormData } from "@/lib/actions/lotes"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,8 @@ import {
     Loader2,
     X,
     Users,
+    Trash2,
+    Phone,
 } from "lucide-react"
 
 interface Props {
@@ -41,6 +43,7 @@ const EMPTY_FORM: LoteFormData = {
     nombres: "",
     apellidos: "",
     dni: "",
+    celular: "",
     tipo_servicio: "HABITADO",
 }
 
@@ -53,6 +56,7 @@ export function LotesClient({ lotes }: Props) {
     const [successMsg, setSuccessMsg] = useState<string | null>(null)
     const [errorMsg, setErrorMsg] = useState<string | null>(null)
     const [isPending, startTransition] = useTransition()
+    const formRef = useRef<HTMLDivElement>(null)
 
     const filtered = lotes.filter((l) => {
         const q = search.toLowerCase()
@@ -84,11 +88,35 @@ export function LotesClient({ lotes }: Props) {
             nombres: lote.nombres ?? "",
             apellidos: lote.apellidos ?? "",
             dni: lote.dni ?? "",
+            celular: lote.celular ?? "",
             tipo_servicio: lote.tipo_servicio,
         })
         setSuccessMsg(null)
         setErrorMsg(null)
         setShowForm(true)
+        // Wait for React to render the form, then scroll
+        setTimeout(() => {
+            requestAnimationFrame(() => {
+                formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+            })
+        }, 150)
+    }
+
+    function handleEliminar(lote: Lote) {
+        const codigo = formatLoteCodigo(lote.manzana, lote.lote_numero)
+        const ok = window.confirm(
+            `¿Estás seguro de eliminar el lote ${codigo} (${lote.nombres} ${lote.apellidos})?\n\nSe eliminarán también TODOS sus recibos. Esta acción no se puede deshacer.`
+        )
+        if (!ok) return
+        setSuccessMsg(null)
+        startTransition(async () => {
+            const result = await eliminarLote(lote.id)
+            if (result.error) {
+                setErrorMsg(result.error)
+            } else {
+                setSuccessMsg(`✓ Lote ${codigo} eliminado.`)
+            }
+        })
     }
 
     function closeForm() {
@@ -178,7 +206,7 @@ export function LotesClient({ lotes }: Props) {
 
             {/* Create / Edit Form */}
             {showForm && (
-                <Card className="border-blue-200 bg-blue-50">
+                <Card ref={formRef} className="border-blue-200 bg-blue-50">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
                             <Users className="w-4 h-4" />
@@ -278,24 +306,39 @@ export function LotesClient({ lotes }: Props) {
                                 </div>
                             </div>
 
-                            {/* Row 3: DNI */}
-                            <div className="space-y-1 max-w-xs">
-                                <label className="text-sm font-medium text-gray-700">
-                                    DNI
-                                    <span className="text-gray-400 font-normal ml-1">(para consulta pública)</span>
-                                </label>
-                                <Input
-                                    placeholder="Ej: 12345678"
-                                    maxLength={8}
-                                    value={form.dni}
-                                    onChange={(e) =>
-                                        setForm({ ...form, dni: e.target.value.replace(/\D/g, "") })
-                                    }
-                                    className="bg-white font-mono"
-                                />
-                                <p className="text-xs text-gray-400">
-                                    8 dígitos. El vecino usará este DNI para consultar su deuda.
-                                </p>
+                            {/* Row 3: DNI + Celular */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        DNI
+                                        <span className="text-gray-400 font-normal ml-1">(consulta pública)</span>
+                                    </label>
+                                    <Input
+                                        placeholder="Ej: 12345678"
+                                        maxLength={8}
+                                        value={form.dni}
+                                        onChange={(e) =>
+                                            setForm({ ...form, dni: e.target.value.replace(/\D/g, "") })
+                                        }
+                                        className="bg-white font-mono"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-sm font-medium text-gray-700">
+                                        <Phone className="w-3 h-3 inline mr-1" />
+                                        Celular
+                                        <span className="text-gray-400 font-normal ml-1">(para WhatsApp)</span>
+                                    </label>
+                                    <Input
+                                        placeholder="Ej: 964972584"
+                                        maxLength={9}
+                                        value={form.celular}
+                                        onChange={(e) =>
+                                            setForm({ ...form, celular: e.target.value.replace(/\D/g, "") })
+                                        }
+                                        className="bg-white font-mono"
+                                    />
+                                </div>
                             </div>
 
                             {errorMsg && (
@@ -338,6 +381,7 @@ export function LotesClient({ lotes }: Props) {
                             <th className="text-left px-4 py-3 font-medium text-gray-600">Código</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">Propietario</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">DNI</th>
+                            <th className="text-left px-4 py-3 font-medium text-gray-600">Celular</th>
                             <th className="text-left px-4 py-3 font-medium text-gray-600">Tipo</th>
                             <th className="text-center px-4 py-3 font-medium text-gray-600">Acción</th>
                         </tr>
@@ -345,7 +389,7 @@ export function LotesClient({ lotes }: Props) {
                     <tbody className="divide-y">
                         {filtered.length === 0 && (
                             <tr>
-                                <td colSpan={5} className="text-center py-10 text-gray-400">
+                                <td colSpan={6} className="text-center py-10 text-gray-400">
                                     {search
                                         ? "No se encontraron lotes con ese criterio."
                                         : "No hay lotes registrados. Crea el primero."}
@@ -365,6 +409,11 @@ export function LotesClient({ lotes }: Props) {
                                         <span className="text-gray-300 italic">—</span>
                                     )}
                                 </td>
+                                <td className="px-4 py-3 font-mono text-gray-600 text-xs">
+                                    {lote.celular ?? (
+                                        <span className="text-gray-300 italic">—</span>
+                                    )}
+                                </td>
                                 <td className="px-4 py-3">
                                     <Badge variant={tipoVariant[lote.tipo_servicio]}>
                                         {lote.tipo_servicio === "HABITADO"
@@ -375,15 +424,26 @@ export function LotesClient({ lotes }: Props) {
                                     </Badge>
                                 </td>
                                 <td className="px-4 py-3 text-center">
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => openEdit(lote)}
-                                        className="gap-1 text-gray-500 hover:text-gray-900"
-                                    >
-                                        <Pencil className="w-3 h-3" />
-                                        Editar
-                                    </Button>
+                                    <div className="flex justify-center gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => openEdit(lote)}
+                                            className="gap-1 text-gray-500 hover:text-gray-900"
+                                        >
+                                            <Pencil className="w-3 h-3" />
+                                            Editar
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => handleEliminar(lote)}
+                                            disabled={isPending}
+                                            className="gap-1 text-red-400 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                        </Button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}

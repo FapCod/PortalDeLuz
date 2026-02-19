@@ -11,6 +11,7 @@ export interface Lote {
     nombres: string | null
     apellidos: string | null
     dni: string | null
+    celular: string | null
     tipo_servicio: EstadoLote
     created_at: string
 }

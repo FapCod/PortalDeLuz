@@ -88,3 +88,29 @@ export async function reabrirPeriodo(id: number) {
     revalidatePath("/admin/periodos")
     return { success: true }
 }
+
+export async function eliminarPeriodo(id: number) {
+    const supabase = await createClient()
+
+    // Primero eliminar todos los recibos del período
+    const { error: errorRecibos } = await supabase
+        .from("recibos")
+        .delete()
+        .eq("tarifa_id", id)
+
+    if (errorRecibos) return { error: "No se pudo eliminar: " + errorRecibos.message }
+
+    // Luego eliminar el período
+    const { error } = await supabase
+        .from("tarifas_mensuales")
+        .delete()
+        .eq("id", id)
+
+    if (error) return { error: "No se pudo eliminar: " + error.message }
+
+    revalidatePath("/admin/periodos")
+    revalidatePath("/admin/pagos")
+    revalidatePath("/admin/lecturas")
+    revalidatePath("/admin/dashboard")
+    return { success: true }
+}

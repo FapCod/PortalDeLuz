@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { TarifaMensual } from "@/types"
 import { formatPeriodo } from "@/lib/utils"
-import { crearPeriodo, cerrarPeriodo, reabrirPeriodo, editarPeriodo } from "@/lib/actions/periodos"
+import { crearPeriodo, cerrarPeriodo, reabrirPeriodo, editarPeriodo, eliminarPeriodo } from "@/lib/actions/periodos"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,7 @@ import {
     X,
     CheckCircle,
     AlertCircle,
+    Trash2,
 } from "lucide-react"
 
 interface Props {
@@ -68,6 +69,23 @@ export function PeriodosClient({ periodos }: Props) {
     function handleReabrir(id: number) {
         startTransition(async () => {
             await reabrirPeriodo(id)
+        })
+    }
+
+    function handleEliminar(p: TarifaMensual) {
+        const nombre = formatPeriodo(p.periodo)
+        const ok = window.confirm(
+            `¿Estás seguro de eliminar el período "${nombre}"?\n\nSe eliminarán también TODOS los recibos de este período. Esta acción no se puede deshacer.`
+        )
+        if (!ok) return
+        setSuccessMsg(null)
+        startTransition(async () => {
+            const result = await eliminarPeriodo(p.id)
+            if (result.error) {
+                setError(result.error)
+            } else {
+                setSuccessMsg(`✓ Período "${nombre}" eliminado.`)
+            }
         })
     }
 
@@ -262,7 +280,7 @@ export function PeriodosClient({ periodos }: Props) {
                                             S/ {p.precio_kwh}/KWH · Alumbrado: S/ {p.costo_alumbrado}
                                         </p>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex gap-2 flex-wrap">
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -295,6 +313,16 @@ export function PeriodosClient({ periodos }: Props) {
                                                 Reabrir
                                             </Button>
                                         )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => handleEliminar(p)}
+                                            disabled={isPending}
+                                            className="gap-1 text-red-500 border-red-200 hover:bg-red-50"
+                                        >
+                                            <Trash2 className="w-3 h-3" />
+                                            Eliminar
+                                        </Button>
                                     </div>
                                 </div>
                             )}
