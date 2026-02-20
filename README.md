@@ -8,46 +8,37 @@ Este sistema permite a los administradores:
 - Configurar tarifas mensuales (precio por kWh, alumbrado público).
 - Registrar lecturas de consumo y generar recibos automáticamente.
 - Controlar el estado de los pagos y la recaudación.
+- **Generar reportes e importar masivamente lecturas desde Excel.**
 
 Además, ofrece un **Portal de Vecinos** de acceso público donde los usuarios pueden consultar su deuda y el historial de sus recibos utilizando únicamente su DNI, garantizando transparencia y facilidad de acceso a la información.
 
 ## 🚀 Stack Tecnológico
 
-El proyecto está construido sobre un stack robusto y escalable:
+El proyecto utiliza un stack moderno para máxima precisión y velocidad:
 
-- **Frontend**: [Next.js 14+](https://nextjs.org/) (App Router) - El framework de React para producción.
-- **Lenguaje**: [TypeScript](https://www.typescriptlang.org/) - Tipado estático para un código más seguro y mantenible.
-- **Backend & Base de Datos**: [Supabase](https://supabase.com/) - Postgres, Autenticación y Realtime "out of the box".
-- **Estilos**: [Tailwind CSS](https://tailwindcss.com/) - Framework de utilidades para diseño rápido.
-- **Componentes UI**: [shadcn/ui](https://ui.shadcn.com/) - Componentes accesibles y personalizables construidos con Radix UI.
-- **Iconos**: [Lucide React](https://lucide.dev/) - Iconos hermosos y consistentes.
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router) - Con Turbopack para desarrollo ultra fluido.
+- **Backend & Base de Datos**: [Supabase](https://supabase.com/) (PostgreSQL, Auth, RLS).
+- **Manejo de Datos**: [SheetJS (xlsx)](https://sheetjs.com/) - Estandarizado para reportes e importaciones masivas.
+- **Estilos**: [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/).
+- **Iconos**: [Lucide React](https://lucide.dev/).
 
 ## ✨ Características Principales
 
-### 1. Gestión de Lotes
-- Directorio completo de vecinos con información de contacto.
-- Clasificación de lotes por estado: `HABITADO`, `SOLO_MANTENIMIENTO`, `BALDIO`.
-- Validación para evitar duplicidad de lotes en una misma manzana.
+### 1. Gestión de Lecturas y Precisión Financiera
+- **Importación Masiva Excel**: Carga de lecturas directamente desde archivos `.xlsx` o `.xls`.
+- **Cálculo Automatizado (SQL)**: Los totales de los recibos se calculan mediante un trigger en la base de datos (`tr_calcular_recibo_biu`), garantizando que los montos sean consistentes independientemente del canal de ingreso.
+- **Redondeo Inteligente**: Los montos se redondean automáticamente para facilitar la cobranza presencial.
 
-### 2. Tarifas Flexibles
-- Configuración mensual de costos unitarios.
-- Diferenciación de costos por consumo (kWh) y costos fijos (Alumbrado Público).
-- Histórico de tarifas para mantener la integridad de recibos pasados.
+### 2. Diseño Defensivo y UX Premium
+- **Selección de Período Obligatoria**: La interfaz bloquea el registro accidental si no hay un período definido.
+- **Confirmación Crítica**: Todas las acciones sensibles (marcar como pagado, eliminar) requieren confirmación mediante `AlertDialog` asíncronos.
+- **Notificaciones**: Feedback inmediato mediante `Sonner` toasts.
 
-### 3. Facturación Automatizada
-- Cálculo automático del monto a pagar basado en lecturas.
-- Fórmula transparente: `(Consumo * Precio Unitario) + Alumbrado`.
-- Redondeo automático para facilitar el cobro en efectivo.
+### 3. Seguridad Estricta
+- **RLS (Row Level Security)**: Políticas implementadas para proteger la privacidad de los vecinos y restringir la administración solo a usuarios autenticados.
 
-### 4. Control de Pagos
-- Seguimiento del estado de cada recibo (`PENDIENTE`, `PAGADO`).
-- Registro de fecha y hora de los pagos.
-- Indicadores visuales de estado.
-
-### 5. Acceso Público
-- Consulta rápida de deuda por DNI.
-- Sin necesidad de registro para los vecinos.
-- Visualización clara del detalle de cada recibo.
+### 4. Reportes Avanzados
+- Generación de reportes mensuales en Excel con un solo clic, permitiendo una auditoría fácil y rápida de la recaudación.
 
 ## 🛠️ Configuración Local
 
@@ -60,14 +51,10 @@ El proyecto está construido sobre un stack robusto y escalable:
 2.  **Instalar dependencias**
     ```bash
     npm install
-    # o
-    pnpm install
-    # o
-    yarn install
     ```
 
 3.  **Configurar Variables de Entorno**
-    Crea un archivo `.env.local` en la raíz del proyecto y agrega tus credenciales de Supabase:
+    Crea un archivo `.env.local` en la raíz del proyecto:
 
     ```env
     NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
@@ -75,14 +62,18 @@ El proyecto está construido sobre un stack robusto y escalable:
     ```
 
 4.  **Base de Datos**
-    Ejecuta el script SQL ubicado en `.gemini/BaseDeDatos.sql` en el editor SQL de tu proyecto en Supabase para crear las tablas y políticas de seguridad necesarias.
+    Los esquemas actuales se encuentran en `supabase/schema.sql`. Asegúrate de ejecutarlos en tu instancia de Supabase.
 
 5.  **Ejecutar el servidor de desarrollo**
     ```bash
     npm run dev
     ```
 
-    Abre [http://localhost:3000](http://localhost:3000) en tu navegador para ver la aplicación.
+    Abre [http://localhost:3000](http://localhost:3000) en tu navegador.
+
+## 📜 Documentación Adicional
+Para más detalles sobre la arquitectura técnica y reglas de negocio, consulta:
+- [Requerimientos Principales.md](file:///d:/GitHubProyects/PortalDeLuz/.gemini/Requerimientos%20Principales.md)
 
 ## 📜 Licencia
 Este proyecto es propiedad de la comunidad UPIS Las Palmeras del Sol y está destinado para su uso interno.

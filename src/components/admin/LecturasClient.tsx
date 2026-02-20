@@ -20,7 +20,7 @@ import {
     X,
     Wrench,
 } from "lucide-react"
-import Papa from "papaparse"
+import * as XLSX from "xlsx"
 
 interface Props {
     lotes: Lote[]
@@ -28,7 +28,7 @@ interface Props {
 }
 
 export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
-    const [activeTab, setActiveTab] = useState<"individual" | "csv" | "mantenimiento">("individual")
+    const [activeTab, setActiveTab] = useState<"individual" | "excel" | "mantenimiento">("individual")
 
     // Individual form state
     const [search, setSearch] = useState("")
@@ -39,12 +39,12 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
     const [errorMsg, setErrorMsg] = useState<string | null>(null)
     const [isPending, startTransition] = useTransition()
 
-    // CSV state
-    const [csvRows, setCsvRows] = useState<
+    // Excel state
+    const [excelRows, setExcelRows] = useState<
         { lote_id: number; nombre: string; codigo: string; consumo_kwh: number; total: number }[]
     >([])
-    const [csvError, setCsvError] = useState<string | null>(null)
-    const [csvSuccess, setCsvSuccess] = useState<string | null>(null)
+    const [excelError, setExcelError] = useState<string | null>(null)
+    const [excelSuccess, setExcelSuccess] = useState<string | null>(null)
 
     // Maintenance bulk state
     const [mantKwh, setMantKwh] = useState("5")
@@ -90,23 +90,28 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
         })
     }
 
-    function handleCSVUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    function handleExcelUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0]
         if (!file || !selectedTarifa) return
-        setCsvError(null)
-        setCsvSuccess(null)
+        setExcelError(null)
+        setExcelSuccess(null)
 
-        Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
-                const rows: typeof csvRows = []
+        const reader = new FileReader()
+        reader.onload = (evt) => {
+            try {
+                const bstr = evt.target?.result
+                const wb = XLSX.read(bstr, { type: "binary" })
+                const wsname = wb.SheetNames[0]
+                const ws = wb.Sheets[wsname]
+                const data = XLSX.utils.sheet_to_json(ws) as any[]
+
+                const rows: typeof excelRows = []
                 const errors: string[] = []
 
-                results.data.forEach((row: any, i: number) => {
+                data.forEach((row: any, i: number) => {
                     const mz = (row.mz || row.MZ || "").toString().trim().toUpperCase()
                     const lt = parseInt(row.lt || row.LT || "0")
-                    const consumoKwh = parseFloat(row.consumo_kwh || row["CONSUMO EN KWH"] || "0")
+                    const consumoKwh = parseFloat(row.consumo_kwh || row["CONSUMO EN KWH"] || row["consumo"] || "0")
 
                     const lote = lotes.find(
                         (l) => l.manzana.toUpperCase() === mz && l.lote_numero === lt
@@ -128,27 +133,29 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                 })
 
                 if (errors.length > 0) {
-                    setCsvError(errors.join("\n"))
+                    setExcelError(errors.join("\n"))
                 }
-                setCsvRows(rows)
-            },
-            error: () => setCsvError("Error al leer el archivo CSV."),
-        })
+                setExcelRows(rows)
+            } catch (err) {
+                setExcelError("Error al procesar el archivo Excel. Asegúrate de que sea un archivo .xlsx válido.")
+            }
+        }
+        reader.readAsBinaryString(file)
     }
 
-    function handleCSVImport() {
-        if (!selectedTarifa || csvRows.length === 0) return
-        setCsvError(null)
+    function handleExcelImport() {
+        if (!selectedTarifa || excelRows.length === 0) return
+        setExcelError(null)
         startTransition(async () => {
             const result = await importarLecturas(
                 selectedTarifa.id,
-                csvRows.map((r) => ({ lote_id: r.lote_id, consumo_kwh: r.consumo_kwh }))
+                excelRows.map((r) => ({ lote_id: r.lote_id, consumo_kwh: r.consumo_kwh }))
             )
             if (result.error) {
-                setCsvError(result.error)
+                setExcelError(result.error)
             } else {
-                setCsvSuccess(`✓ ${result.count} lecturas importadas correctamente.`)
-                setCsvRows([])
+                setExcelSuccess(`✓ ${result.count} lecturas importadas correctamente.`)
+                setExcelRows([])
             }
         })
     }
@@ -246,14 +253,14 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                             Lectura Individual
                         </button>
                         <button
-                            onClick={() => setActiveTab("csv")}
-                            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors cursor-pointer ${activeTab === "csv"
+                            onClick={() => setActiveTab("excel")}
+                            className={`pb-3 px-1 text-sm font-medium border-b-2 transition-colors cursor-pointer ${activeTab === "excel"
                                 ? "border-blue-600 text-blue-600"
                                 : "border-transparent text-gray-500 hover:text-gray-700"
                                 }`}
                         >
                             <Upload className="w-4 h-4 inline mr-1.5" />
-                            Importar CSV
+                            Importar desde Excel
                         </button>
                         <button
                             onClick={() => setActiveTab("mantenimiento")}
@@ -414,24 +421,36 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                         </div>
                     )}
 
-                    {/* CSV Tab */}
-                    {activeTab === "csv" && (
+                    {/* Excel Tab */}
+                    {activeTab === "excel" && (
                         <div className="space-y-4">
                             {/* Format guide */}
                             <Card className="bg-blue-50 border-blue-200">
                                 <CardContent className="p-4">
                                     <p className="text-sm font-medium text-blue-900 mb-2 flex items-center gap-2">
                                         <FileText className="w-4 h-4" />
-                                        Formato esperado del CSV:
+                                        Formato esperado del archivo (.xlsx):
                                     </p>
-                                    <code className="text-xs bg-white rounded px-3 py-2 block text-gray-700 font-mono">
-                                        mz,lt,consumo_kwh<br />
-                                        A,1,105<br />
-                                        A,2,5<br />
-                                        A,17,78.7
-                                    </code>
-                                    <p className="text-xs text-blue-600 mt-2">
-                                        El precio KWH y alumbrado se toman del período seleccionado arriba.
+                                    <div className="overflow-x-auto">
+                                        <table className="text-xs bg-white rounded border w-full text-center">
+                                            <thead>
+                                                <tr className="bg-gray-100 border-b">
+                                                    <th className="p-1">mz</th>
+                                                    <th className="p-1">lt</th>
+                                                    <th className="p-1">consumo_kwh</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td className="p-1">A</td>
+                                                    <td className="p-1">1</td>
+                                                    <td className="p-1 text-blue-600 font-medium">105.5</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <p className="text-xs text-blue-600 mt-2 italic">
+                                        * El sistema detectará las columnas 'mz', 'lt' y 'consumo_kwh' automáticamente.
                                     </p>
                                 </CardContent>
                             </Card>
@@ -439,33 +458,33 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                             {/* Upload */}
                             <div>
                                 <label
-                                    htmlFor="csv-upload"
+                                    htmlFor="excel-upload"
                                     className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors"
                                 >
                                     <Upload className="w-8 h-8 text-gray-400 mb-2" />
                                     <p className="text-sm text-gray-600">
-                                        <span className="font-medium text-blue-600">Haz clic para subir</span> o arrastra tu CSV
+                                        <span className="font-medium text-blue-600">Haz clic para subir</span> o arrastra tu archivo Excel
                                     </p>
-                                    <p className="text-xs text-gray-400 mt-1">Solo archivos .csv</p>
+                                    <p className="text-xs text-gray-400 mt-1">Solo archivos .xlsx o .xls</p>
                                     <input
-                                        id="csv-upload"
+                                        id="excel-upload"
                                         type="file"
-                                        accept=".csv"
+                                        accept=".xlsx, .xls"
                                         className="hidden"
-                                        onChange={handleCSVUpload}
+                                        onChange={handleExcelUpload}
                                     />
                                 </label>
                             </div>
 
                             {/* Preview table */}
-                            {csvRows.length > 0 && (
+                            {excelRows.length > 0 && (
                                 <div className="space-y-3">
                                     <div className="flex items-center justify-between">
                                         <p className="text-sm font-medium text-gray-700">
-                                            Vista previa — {csvRows.length} lecturas
+                                            Vista previa — {excelRows.length} lecturas
                                         </p>
                                         <Button
-                                            onClick={handleCSVImport}
+                                            onClick={handleExcelImport}
                                             disabled={isPending}
                                             className="gap-2"
                                         >
@@ -490,7 +509,7 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y">
-                                                {csvRows.map((row, i) => (
+                                                {excelRows.map((row, i) => (
                                                     <tr key={i} className="hover:bg-gray-50">
                                                         <td className="px-4 py-2 font-mono text-xs text-gray-600">{row.codigo}</td>
                                                         <td className="px-4 py-2 text-gray-900">{row.nombre}</td>
@@ -498,7 +517,6 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                                                         <td className="px-4 py-2 text-right font-semibold text-blue-700">
                                                             {formatCurrencyPEN(row.total)}
                                                         </td>
-
                                                     </tr>
                                                 ))}
                                             </tbody>
@@ -507,16 +525,16 @@ export function LecturasClient({ lotes, tarifasAbiertas }: Props) {
                                 </div>
                             )}
 
-                            {csvError && (
+                            {excelError && (
                                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700 whitespace-pre-line">
                                     <AlertCircle className="w-4 h-4 inline mr-1" />
-                                    {csvError}
+                                    {excelError}
                                 </div>
                             )}
-                            {csvSuccess && (
+                            {excelSuccess && (
                                 <div className="bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-700">
                                     <CheckCircle className="w-4 h-4 inline mr-1" />
-                                    {csvSuccess}
+                                    {excelSuccess}
                                 </div>
                             )}
                         </div>
