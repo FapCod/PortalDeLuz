@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Users, CreditCard, AlertCircle } from "lucide-react"
-import { formatCurrency, formatPeriodo } from "@/lib/utils"
+import { Zap, Users, CreditCard, AlertCircle, FileSpreadsheet } from "lucide-react"
+import { formatCurrencyPEN, formatPeriodo } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { DeudasPorPeriodoFilter } from "@/components/admin/DeudasPorPeriodoFilter"
 import Link from "next/link"
 
 export const metadata = { title: "Dashboard" }
@@ -10,7 +12,7 @@ export const metadata = { title: "Dashboard" }
 async function getStats() {
     const supabase = await createClient()
 
-    const [lotesRes, recibosRes, tarifaRes] = await Promise.all([
+    const [lotesRes, recibosRes, tarifaRes, deudasRes] = await Promise.all([
         supabase.from("lotes").select("id", { count: "exact" }),
         supabase.from("recibos").select("id, estado, total_recibo", { count: "exact" }),
         supabase
@@ -20,6 +22,7 @@ async function getStats() {
             .order("periodo", { ascending: false })
             .limit(1)
             .single(),
+        supabase.from("vista_deudas_por_periodo").select("*"),
     ])
 
     const recibos = recibosRes.data ?? []
@@ -32,6 +35,7 @@ async function getStats() {
         recibossPendientes: pendientes.length,
         totalDeuda,
         periodoActivo: tarifaRes.data,
+        deudasPorPeriodo: deudasRes.data ?? [],
     }
 }
 
@@ -40,11 +44,19 @@ export default async function DashboardPage() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-gray-500 text-sm mt-1">
-                    Resumen del sistema — UPIS Las Palmeras del Sol
-                </p>
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                    <p className="text-gray-500 text-sm mt-1">
+                        Resumen del sistema — UPIS Las Palmeras del Sol
+                    </p>
+                </div>
+                <Link href="/admin/reportes">
+                    <Button variant="outline" className="gap-2">
+                        <FileSpreadsheet className="w-4 h-4 text-green-600" />
+                        Ver Reportes
+                    </Button>
+                </Link>
             </div>
 
             {/* Período activo */}
@@ -59,8 +71,8 @@ export default async function DashboardPage() {
                             </span>
                         </p>
                         <p className="text-xs text-blue-600">
-                            S/ {stats.periodoActivo.precio_kwh}/KWH · Alumbrado: S/{" "}
-                            {stats.periodoActivo.costo_alumbrado}
+                            {formatCurrencyPEN(stats.periodoActivo.precio_kwh)}/KWH · Alumbrado:{" "}
+                            {formatCurrencyPEN(stats.periodoActivo.costo_alumbrado)}
                         </p>
                     </div>
                     <Badge variant="success" className="ml-auto">
@@ -126,11 +138,14 @@ export default async function DashboardPage() {
                     </CardHeader>
                     <CardContent>
                         <p className="text-3xl font-bold text-orange-600">
-                            {formatCurrency(stats.totalDeuda)}
+                            {formatCurrencyPEN(stats.totalDeuda)}
                         </p>
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Resumen por Periodo (Filtered Card) */}
+            <DeudasPorPeriodoFilter initialData={stats.deudasPorPeriodo} />
 
             {/* Quick actions */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

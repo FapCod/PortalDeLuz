@@ -2,17 +2,36 @@
 
 import { useState, useTransition } from "react"
 import { Recibo, Lote, TarifaMensual } from "@/types"
-import { formatCurrency, formatLoteCodigo, formatPeriodo } from "@/lib/utils"
+import { formatCurrencyPEN, formatLoteCodigo, formatPeriodo } from "@/lib/utils"
 import { marcarPagado, marcarPendiente, eliminarRecibo, editarRecibo, eliminarRecibosMantenimiento } from "@/lib/actions/pagos"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CheckCircle, RotateCcw, Search, Loader2, Download, Trash2, Pencil, Save, X, MessageCircle } from "lucide-react"
+import { CheckCircle, RotateCcw, Search, Loader2, Trash2, Pencil, Save, X, MessageCircle, AlertTriangle } from "lucide-react"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 
 type ReciboConRelaciones = Recibo & { lote: Lote; tarifa: TarifaMensual }
 
 interface Props {
     recibos: ReciboConRelaciones[]
+    tarifas: TarifaMensual[]
 }
 
 const estadoBadge = {
@@ -21,7 +40,7 @@ const estadoBadge = {
     VENCIDO: "destructive" as const,
 }
 
-export function PagosClient({ recibos }: Props) {
+export function PagosClient({ recibos, tarifas }: Props) {
     const [search, setSearch] = useState("")
     const [filtroEstado, setFiltroEstado] = useState<"TODOS" | "PENDIENTE" | "PAGADO">("TODOS")
     const [filtroTipo, setFiltroTipo] = useState<"TODOS" | "HABITADO" | "SOLO_MANTENIMIENTO">("TODOS")
@@ -30,6 +49,11 @@ export function PagosClient({ recibos }: Props) {
     const [editingId, setEditingId] = useState<number | null>(null)
     const [editConsumo, setEditConsumo] = useState("")
     const [page, setPage] = useState(1)
+
+    // Filter to most recent or open period by default
+    const initialPeriod = tarifas.find(t => t.estado === "ABIERTO")?.id.toString() || tarifas[0]?.id.toString() || "TODOS"
+    const [selectedPeriod, setSelectedPeriod] = useState<string>(initialPeriod)
+
     const [showBulkWA, setShowBulkWA] = useState(false)
     const [bulkIndex, setBulkIndex] = useState(0)
     const [showDeleteMant, setShowDeleteMant] = useState(false)
@@ -42,7 +66,8 @@ export function PagosClient({ recibos }: Props) {
         const matchSearch = !q || nombre.includes(q) || codigo.includes(q)
         const matchEstado = filtroEstado === "TODOS" || r.estado === filtroEstado
         const matchTipo = filtroTipo === "TODOS" || r.lote?.tipo_servicio === filtroTipo
-        return matchSearch && matchEstado && matchTipo
+        const matchPeriodo = selectedPeriod === "TODOS" || r.tarifa_id.toString() === selectedPeriod
+        return matchSearch && matchEstado && matchTipo && matchPeriodo
     })
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
@@ -66,11 +91,6 @@ export function PagosClient({ recibos }: Props) {
     }
 
     function handleEliminar(r: ReciboConRelaciones) {
-        const codigo = formatLoteCodigo(r.lote?.manzana ?? "", r.lote?.lote_numero ?? 0)
-        const ok = window.confirm(
-            `¿Eliminar el recibo de ${r.lote?.nombres} ${r.lote?.apellidos} (${codigo})?\nConsumo: ${r.consumo_kwh} KWH — Total: S/ ${r.total_recibo}\n\nEsta acción no se puede deshacer.`
-        )
-        if (!ok) return
         setLoadingId(r.id)
         startTransition(async () => {
             await eliminarRecibo(r.id)
@@ -105,8 +125,9 @@ export function PagosClient({ recibos }: Props) {
         const periodo = r.tarifa ? formatPeriodo(r.tarifa.periodo) : ""
         const portalUrl = `${process.env.NEXT_PUBLIC_URL ?? "https://portal-de-luz.vercel.app"}/consulta`
         const mensaje = encodeURIComponent(
-            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por S/ ${r.total_recibo} está pendiente de pago. Lote: ${codigo}. \n\nConsulte su recibo aquí:\n${portalUrl}\n\nUPIS Las Palmeras del Sol`
+            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por ${formatCurrencyPEN(r.total_recibo)} está pendiente de pago. Lote: ${codigo}. \n\nConsulte su recibo aquí:\n${portalUrl}\n\nUPIS Las Palmeras del Sol`
         )
+
         window.open(`https://wa.me/51${celular}?text=${mensaje}`, "_blank")
     }
 
@@ -132,38 +153,13 @@ export function PagosClient({ recibos }: Props) {
         const periodo = r.tarifa ? formatPeriodo(r.tarifa.periodo) : ""
         const portalUrl = `${process.env.NEXT_PUBLIC_URL ?? "https://portal-de-luz.vercel.app"}/consulta`
         const mensaje = encodeURIComponent(
-            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por S/ ${r.total_recibo} está pendiente de pago. Lote: ${codigo}. \n\nConsulte su recibo aquí:\n${portalUrl}\n\nUPIS Las Palmeras del Sol`
+            `Hola ${nombre}, le recordamos que su recibo de luz del período ${periodo} por ${formatCurrencyPEN(r.total_recibo)} está pendiente de pago. Lote: ${codigo}. \n\nConsulte su recibo aquí:\n${portalUrl}\n\nUPIS Las Palmeras del Sol`
         )
+
         window.open(`https://wa.me/51${celular}?text=${mensaje}`, "_blank")
         setBulkIndex(bulkIndex + 1)
     }
 
-    function handleExportCSV() {
-        const rows = [
-            ["Lote", "Propietario", "DNI", "Período", "Consumo KWH", "Precio KWH", "Alumbrado", "Total S/", "Estado", "Fecha Pago"],
-            ...filtered.map((r) => [
-                r.lote ? formatLoteCodigo(r.lote.manzana, r.lote.lote_numero) : "",
-                r.lote ? `${r.lote.nombres} ${r.lote.apellidos}` : "",
-                r.lote?.dni ?? "",
-                r.tarifa ? formatPeriodo(r.tarifa.periodo) : "",
-                r.consumo_kwh,
-                r.precio_x_kwh,
-                r.alumbrado_publico,
-                r.total_recibo,
-                r.estado,
-                r.fecha_pago ? new Date(r.fecha_pago).toLocaleDateString("es-PE") : "",
-            ]),
-        ]
-        const csv = rows.map((r) => r.map((v) => `"${v}"`).join(",")).join("\n")
-        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        const periodo = filtered[0]?.tarifa ? formatPeriodo(filtered[0].tarifa.periodo) : "reporte"
-        a.download = `recibos-${periodo.replace(/\s/g, "-")}.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-    }
 
     return (
         <div className="space-y-4">
@@ -190,16 +186,6 @@ export function PagosClient({ recibos }: Props) {
                 >
                     Pagados ({pagadoCount})
                 </button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportCSV}
-                    disabled={filtered.length === 0}
-                    className="ml-auto gap-2"
-                >
-                    <Download className="w-3.5 h-3.5" />
-                    Exportar CSV ({filtered.length})
-                </Button>
             </div>
 
             {/* Tipo filter */}
@@ -266,46 +252,91 @@ export function PagosClient({ recibos }: Props) {
                             ).length
                             if (!tarifa || mantCount === 0) return null
                             return (
-                                <Button
-                                    key={tarifaId}
-                                    variant="outline"
-                                    size="sm"
-                                    disabled={isPending}
-                                    className="border-red-300 text-red-700 hover:bg-red-100 gap-1.5"
-                                    onClick={() => {
-                                        const ok = window.confirm(
-                                            `¿Eliminar los ${mantCount} recibos de SOLO MANTENIMIENTO del período ${formatPeriodo(tarifa.periodo)}?\n\nEsta acción no se puede deshacer.`
-                                        )
-                                        if (!ok) return
-                                        startTransition(async () => {
-                                            const result = await eliminarRecibosMantenimiento(tarifaId)
-                                            if (result.error) {
-                                                window.alert(result.error)
-                                            } else {
-                                                window.alert(`✓ Se eliminaron ${result.count} recibos de mantenimiento.`)
-                                                setShowDeleteMant(false)
-                                            }
-                                        })
-                                    }}
-                                >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    {formatPeriodo(tarifa.periodo)} ({mantCount})
-                                </Button>
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            key={tarifaId}
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={isPending}
+                                            className="border-red-300 text-red-700 hover:bg-red-100 gap-1.5"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                            {formatPeriodo(tarifa.periodo)} ({mantCount})
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle className="flex items-center gap-2">
+                                                <AlertTriangle className="w-5 h-5 text-red-600" />
+                                                ¿Eliminar recibos de mantenimiento?
+                                            </AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Se eliminarán los <span className="font-bold text-gray-900">{mantCount} recibos</span> de SOLO MANTENIMIENTO del período <span className="font-bold text-gray-900 capitalize">{formatPeriodo(tarifa.periodo)}</span>.
+                                                <br /><br />
+                                                <span className="font-semibold text-red-600">Esta acción no se puede deshacer.</span>
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={() => {
+                                                    startTransition(async () => {
+                                                        const result = await eliminarRecibosMantenimiento(tarifaId)
+                                                        if (result.error) {
+                                                            window.alert(result.error)
+                                                        } else {
+                                                            setShowDeleteMant(false)
+                                                        }
+                                                    })
+                                                }}
+                                                className="bg-red-500 hover:bg-red-600"
+                                            >
+                                                Eliminar {mantCount} recibos
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             )
                         })}
                     </div>
                 </div>
             )}
 
-            {/* Search */}
-            <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                    placeholder="Buscar por nombre o código de lote..."
-                    value={search}
-                    onChange={(e) => { setSearch(e.target.value); setPage(1) }}
-                    className="pl-9"
-                />
+            {/* Search and Period Filter */}
+            <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                        placeholder="Buscar por nombre o código de lote..."
+                        value={search}
+                        onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                        className="pl-9"
+                    />
+                </div>
+                <div className="w-full sm:w-64">
+                    <Select
+                        value={selectedPeriod}
+                        onValueChange={(val) => { setSelectedPeriod(val); setPage(1) }}
+                    >
+                        <SelectTrigger className="bg-white">
+                            <SelectValue placeholder="Filtrar por período" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="TODOS">Todos los períodos</SelectItem>
+                            {tarifas.map((t) => (
+                                <SelectItem key={t.id} value={t.id.toString()}>
+                                    <div className="flex items-center gap-2">
+                                        <span className="capitalize">{formatPeriodo(t.periodo)}</span>
+                                        {t.estado === "ABIERTO" && (
+                                            <Badge variant="success" className="h-4 px-1 text-[10px]">Abierto</Badge>
+                                        )}
+                                    </div>
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
 
             {/* Bulk WhatsApp Panel */}
@@ -348,8 +379,9 @@ export function PagosClient({ recibos }: Props) {
                                     </span>
                                     {" — "}
                                     <span className="text-gray-600">
-                                        S/ {pendientesConCelular[bulkIndex].total_recibo}
+                                        {formatCurrencyPEN(pendientesConCelular[bulkIndex].total_recibo)}
                                     </span>
+
                                     {" — "}
                                     <span className="font-mono text-xs text-green-600">
                                         {pendientesConCelular[bulkIndex].lote?.celular}
@@ -451,8 +483,9 @@ export function PagosClient({ recibos }: Props) {
                                     )}
                                 </td>
                                 <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                                    S/ {r.total_recibo}
+                                    {formatCurrencyPEN(r.total_recibo)}
                                 </td>
+
                                 <td className="px-4 py-3 text-center">
                                     <Badge variant={estadoBadge[r.estado] ?? "outline"}>
                                         {r.estado}
@@ -477,20 +510,40 @@ export function PagosClient({ recibos }: Props) {
                                 </td>
                                 <td className="px-4 py-3 text-center">
                                     {r.estado === "PENDIENTE" ? (
-                                        <Button
-                                            size="sm"
-                                            variant="outline"
-                                            onClick={() => handlePagar(r.id)}
-                                            disabled={isPending && loadingId === r.id}
-                                            className="gap-1 text-green-600 border-green-200 hover:bg-green-50 text-xs"
-                                        >
-                                            {isPending && loadingId === r.id ? (
-                                                <Loader2 className="w-3 h-3 animate-spin" />
-                                            ) : (
-                                                <CheckCircle className="w-3 h-3" />
-                                            )}
-                                            Pagado
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={isPending && loadingId === r.id}
+                                                    className="gap-1 text-green-600 border-green-200 hover:bg-green-50 text-xs"
+                                                >
+                                                    {isPending && loadingId === r.id ? (
+                                                        <Loader2 className="w-3 h-3 animate-spin" />
+                                                    ) : (
+                                                        <CheckCircle className="w-3 h-3" />
+                                                    )}
+                                                    Pagado
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Confirmar recepción del pago?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Por favor, confirma que has recibido el monto total de **{formatCurrencyPEN(r.total_recibo)}** por parte de **{r.lote?.nombres} {r.lote?.apellidos}** correspondiente al período de **{r.tarifa ? formatPeriodo(r.tarifa.periodo) : "—"}**.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        onClick={() => handlePagar(r.id)}
+                                                        className="bg-green-600 hover:bg-green-700 text-white"
+                                                    >
+                                                        Sí, registrar pago
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     ) : r.estado === "PAGADO" ? (
                                         <Button
                                             size="sm"
@@ -507,15 +560,39 @@ export function PagosClient({ recibos }: Props) {
                                             Revertir
                                         </Button>
                                     ) : null}
-                                    <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        onClick={() => handleEliminar(r)}
-                                        disabled={isPending && loadingId === r.id}
-                                        className="gap-1 text-red-400 hover:text-red-700 hover:bg-red-50 text-xs"
-                                    >
-                                        <Trash2 className="w-3 h-3" />
-                                    </Button>
+                                    <AlertDialog>
+                                        <AlertDialogTrigger asChild>
+                                            <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                disabled={isPending && loadingId === r.id}
+                                                className="gap-1 text-red-400 hover:text-red-700 hover:bg-red-50 text-xs"
+                                            >
+                                                <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>
+                                                    ¿Eliminar el recibo de {r.lote?.nombres} {r.lote?.apellidos}?
+                                                </AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    Consumo: <span className="font-bold text-gray-900">{r.consumo_kwh} KWH</span> — Total: <span className="font-bold text-gray-900">{formatCurrencyPEN(r.total_recibo)}</span>.
+                                                    <br /><br />
+                                                    Esta acción no se puede deshacer.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    onClick={() => handleEliminar(r)}
+                                                    className="bg-red-500 hover:bg-red-600"
+                                                >
+                                                    Eliminar Recibo
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </td>
                             </tr>
                         ))}

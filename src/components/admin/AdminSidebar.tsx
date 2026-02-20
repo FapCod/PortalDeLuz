@@ -13,6 +13,7 @@ import {
     Menu,
     X,
     Users,
+    FileSpreadsheet,
 } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -23,6 +24,7 @@ const navItems = [
     { href: "/admin/lotes", label: "Lotes / Vecinos", icon: Users },
     { href: "/admin/lecturas", label: "Lecturas", icon: Zap },
     { href: "/admin/pagos", label: "Pagos", icon: CreditCard },
+    { href: "/admin/reportes", label: "Reportes", icon: FileSpreadsheet },
 ]
 
 export function AdminSidebar() {

@@ -6,15 +6,21 @@ export const metadata = { title: "Pagos" }
 export default async function PagosPage() {
     const supabase = await createClient()
 
-    const { data: recibos } = await supabase
-        .from("recibos")
-        .select(`
-      *,
-      lote:lotes(*),
-      tarifa:tarifas_mensuales(*)
-    `)
-        .order("created_at", { ascending: false })
-        .limit(200)
+    const [recibosRes, tarifasRes] = await Promise.all([
+        supabase
+            .from("recibos")
+            .select(`
+                *,
+                lote:lotes(*),
+                tarifa:tarifas_mensuales(*)
+            `)
+            .order("created_at", { ascending: false })
+            .limit(1000), // Increased limit for better filtering
+        supabase
+            .from("tarifas_mensuales")
+            .select("*")
+            .order("periodo", { ascending: false })
+    ])
 
     return (
         <div className="space-y-6">
@@ -24,7 +30,10 @@ export default async function PagosPage() {
                     Registra los pagos y consulta el estado de cada recibo
                 </p>
             </div>
-            <PagosClient recibos={recibos ?? []} />
+            <PagosClient
+                recibos={(recibosRes.data ?? []) as any}
+                tarifas={tarifasRes.data ?? []}
+            />
         </div>
     )
 }

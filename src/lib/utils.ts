@@ -6,21 +6,20 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Formats a number as Peruvian Sol currency
+ * Formats a number as Peruvian Sol currency (S/ 0.00)
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrencyPEN(amount: number): string {
     return new Intl.NumberFormat("es-PE", {
         style: "currency",
         currency: "PEN",
         minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
     }).format(amount)
 }
 
 /**
- * Calculates the total receipt amount
- * Formula: ROUND((consumo * precioKwh) + alumbrado)
- * Uses standard rounding: <0.50 rounds down, ≥0.50 rounds up
- * Example: 14.30 → 14, 14.40 → 14, 14.50 → 15
+ * Calculates the total receipt amount (Estimated Preview)
+ * Formula: ((consumo * precioKwh) + alumbrado) rounded to 2 decimals
  */
 export function calcularTotal(
     consumoKwh: number,
@@ -28,9 +27,11 @@ export function calcularTotal(
     alumbrado: number
 ): { totalConsumo: number; totalRecibo: number } {
     const totalConsumo = consumoKwh * precioKwh + alumbrado
-    const totalRecibo = Math.round(totalConsumo)
+    // Round to 2 decimals to match DB trigger
+    const totalRecibo = Math.round(totalConsumo * 100) / 100
     return { totalConsumo, totalRecibo }
 }
+
 
 /**
  * Formats a lote code as "MZ A - LT 1"

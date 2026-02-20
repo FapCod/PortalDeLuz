@@ -3,12 +3,12 @@
 import { useState, useTransition } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Lote, Recibo, TarifaMensual } from "@/types"
-import { formatLoteCodigo, formatPeriodo } from "@/lib/utils"
+import { formatCurrencyPEN, formatLoteCodigo, formatPeriodo } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Search, Download, Loader2, AlertCircle } from "lucide-react"
+import { Search, Loader2, AlertCircle } from "lucide-react"
 
 type ReciboPublico = Recibo & { tarifa: TarifaMensual }
 type LoteConRecibos = Lote & { recibos: ReciboPublico[] }
@@ -97,28 +97,6 @@ export function ConsultaClient() {
         })
     }
 
-    function handleDownloadCSV(lote: Lote, recibos: ReciboPublico[]) {
-        if (recibos.length === 0) return
-        const rows = [
-            ["Período", "Consumo KWH", "Precio KWH", "Alumbrado", "Total", "Estado"],
-            ...recibos.map((r) => [
-                formatPeriodo(r.tarifa?.periodo ?? ""),
-                r.consumo_kwh,
-                r.precio_x_kwh,
-                r.alumbrado_publico,
-                r.total_recibo,
-                r.estado,
-            ]),
-        ]
-        const csv = rows.map((r) => r.join(",")).join("\n")
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = `recibos-${lote.manzana}${lote.lote_numero}.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-    }
 
     const totalDeudaGlobal = lotes.reduce(
         (sum, l) =>
@@ -173,9 +151,10 @@ export function ConsultaClient() {
                             </p>
                             {totalDeudaGlobal > 0 && (
                                 <p className="text-sm font-bold text-red-600">
-                                    Deuda total: S/ {totalDeudaGlobal}
+                                    Deuda total: {formatCurrencyPEN(totalDeudaGlobal)}
                                 </p>
                             )}
+
                         </div>
                     )}
 
@@ -200,9 +179,10 @@ export function ConsultaClient() {
                                         {deudaLote > 0 && (
                                             <div className="text-right">
                                                 <p className="text-xs text-gray-500">Deuda pendiente</p>
-                                                <p className="text-2xl font-bold text-red-600">S/ {deudaLote}</p>
+                                                <p className="text-2xl font-bold text-red-600">{formatCurrencyPEN(deudaLote)}</p>
                                             </div>
                                         )}
+
                                         {deudaLote === 0 && lote.recibos.length > 0 && (
                                             <Badge variant="success" className="text-sm px-3 py-1">
                                                 ✓ Al día
@@ -229,7 +209,8 @@ export function ConsultaClient() {
                                             <p className="text-sm text-yellow-700">Por favor regulariza tu pago lo antes posible para evitar inconvenientes.</p>
                                         </div>
                                         <a
-                                            href={`https://wa.me/51921248292?text=${encodeURIComponent(`Hola, soy ${lote.nombres} ${lote.apellidos} del lote ${formatLoteCodigo(lote.manzana, lote.lote_numero)}. Quisiera coordinar el pago de mi recibo pendiente.`)}`}
+                                            href={`https://wa.me/51921248292?text=${encodeURIComponent(`Hola, soy ${lote.nombres} ${lote.apellidos} del lote ${formatLoteCodigo(lote.manzana, lote.lote_numero)}. Quisiera coordinar el pago de mi recibo pendiente de ${formatCurrencyPEN(deudaLote)}.`)}`}
+
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors shrink-0"
@@ -249,7 +230,8 @@ export function ConsultaClient() {
                                             <p className="text-sm text-red-700">De no regularizar su deuda, se procederá con el <strong>corte del servicio eléctrico</strong>. Acérquese a la directiva para realizar su pago.</p>
                                         </div>
                                         <a
-                                            href={`https://wa.me/51921248292?text=${encodeURIComponent(`URGENTE: Soy ${lote.nombres} ${lote.apellidos} del lote ${formatLoteCodigo(lote.manzana, lote.lote_numero)}. Tengo ${mesesPendientes} meses pendientes por S/ ${deudaLote}. Necesito coordinar mi pago urgentemente.`)}`}
+                                            href={`https://wa.me/51921248292?text=${encodeURIComponent(`URGENTE: Soy ${lote.nombres} ${lote.apellidos} del lote ${formatLoteCodigo(lote.manzana, lote.lote_numero)}. Tengo ${mesesPendientes} meses pendientes por ${formatCurrencyPEN(deudaLote)}. Necesito coordinar mi pago urgentemente.`)}`}
+
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors animate-pulse shrink-0"
@@ -265,20 +247,9 @@ export function ConsultaClient() {
                                 {/* Recibos table */}
                                 {lote.recibos.length > 0 ? (
                                     <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-sm font-medium text-gray-700">
-                                                Historial de recibos ({lote.recibos.length})
-                                            </p>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleDownloadCSV(lote, lote.recibos)}
-                                                className="gap-2"
-                                            >
-                                                <Download className="w-3 h-3" />
-                                                Descargar CSV
-                                            </Button>
-                                        </div>
+                                        <p className="text-sm font-medium text-gray-700">
+                                            Historial de recibos ({lote.recibos.length})
+                                        </p>
                                         <div className="overflow-x-auto rounded-lg border bg-white shadow-sm">
                                             <table className="w-full text-sm">
                                                 <thead className="bg-gray-50 border-b">
@@ -299,8 +270,9 @@ export function ConsultaClient() {
                                                                 {r.consumo_kwh} KWH
                                                             </td>
                                                             <td className="px-4 py-3 text-right font-semibold text-gray-900">
-                                                                S/ {r.total_recibo}
+                                                                {formatCurrencyPEN(r.total_recibo)}
                                                             </td>
+
                                                             <td className="px-4 py-3 text-center">
                                                                 <Badge
                                                                     variant={

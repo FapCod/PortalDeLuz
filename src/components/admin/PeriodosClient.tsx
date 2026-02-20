@@ -20,6 +20,17 @@ import {
     AlertCircle,
     Trash2,
 } from "lucide-react"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
     periodos: TarifaMensual[]
@@ -74,10 +85,6 @@ export function PeriodosClient({ periodos }: Props) {
 
     function handleEliminar(p: TarifaMensual) {
         const nombre = formatPeriodo(p.periodo)
-        const ok = window.confirm(
-            `¿Estás seguro de eliminar el período "${nombre}"?\n\nSe eliminarán también TODOS los recibos de este período. Esta acción no se puede deshacer.`
-        )
-        if (!ok) return
         setSuccessMsg(null)
         startTransition(async () => {
             const result = await eliminarPeriodo(p.id)
@@ -313,16 +320,36 @@ export function PeriodosClient({ periodos }: Props) {
                                                 Reabrir
                                             </Button>
                                         )}
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => handleEliminar(p)}
-                                            disabled={isPending}
-                                            className="gap-1 text-red-500 border-red-200 hover:bg-red-50"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                            Eliminar
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={isPending}
+                                                    className="gap-1 text-red-500 border-red-200 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                    Eliminar
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Estás completamente seguro?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Esta acción no se puede deshacer. Se eliminará el período <span className="font-bold text-gray-900 capitalize">"{formatPeriodo(p.periodo)}"</span> y <span className="font-bold text-red-600">TODOS los recibos asociados</span> a él de forma permanente de nuestros servidores.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        onClick={() => handleEliminar(p)}
+                                                        className="bg-red-500 hover:bg-red-600"
+                                                    >
+                                                        Eliminar Período
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </div>
                             )}

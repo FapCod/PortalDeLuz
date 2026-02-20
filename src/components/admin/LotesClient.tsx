@@ -20,6 +20,17 @@ import {
     Trash2,
     Phone,
 } from "lucide-react"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Props {
     lotes: Lote[]
@@ -109,18 +120,13 @@ export function LotesClient({ lotes }: Props) {
     }
 
     function handleEliminar(lote: Lote) {
-        const codigo = formatLoteCodigo(lote.manzana, lote.lote_numero)
-        const ok = window.confirm(
-            `¿Estás seguro de eliminar el lote ${codigo} (${lote.nombres} ${lote.apellidos})?\n\nSe eliminarán también TODOS sus recibos. Esta acción no se puede deshacer.`
-        )
-        if (!ok) return
         setSuccessMsg(null)
         startTransition(async () => {
             const result = await eliminarLote(lote.id)
             if (result.error) {
                 setErrorMsg(result.error)
             } else {
-                setSuccessMsg(`✓ Lote ${codigo} eliminado.`)
+                setSuccessMsg(`✓ Lote ${formatLoteCodigo(lote.manzana, lote.lote_numero)} eliminado.`)
             }
         })
     }
@@ -440,15 +446,39 @@ export function LotesClient({ lotes }: Props) {
                                             <Pencil className="w-3 h-3" />
                                             Editar
                                         </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => handleEliminar(lote)}
-                                            disabled={isPending}
-                                            className="gap-1 text-red-400 hover:text-red-700 hover:bg-red-50"
-                                        >
-                                            <Trash2 className="w-3 h-3" />
-                                        </Button>
+                                        <AlertDialog>
+                                            <AlertDialogTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    disabled={isPending}
+                                                    className="gap-1 text-red-400 hover:text-red-700 hover:bg-red-50"
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </Button>
+                                            </AlertDialogTrigger>
+                                            <AlertDialogContent>
+                                                <AlertDialogHeader>
+                                                    <AlertDialogTitle>¿Eliminar el lote {formatLoteCodigo(lote.manzana, lote.lote_numero)}?</AlertDialogTitle>
+                                                    <AlertDialogDescription>
+                                                        Propietario: <span className="font-bold text-gray-900">{lote.nombres} {lote.apellidos}</span>.
+                                                        <br /><br />
+                                                        Se eliminarán también <span className="font-bold text-red-600">TODOS sus recibos</span> históricos.
+                                                        <br /><br />
+                                                        Esta acción no se puede deshacer.
+                                                    </AlertDialogDescription>
+                                                </AlertDialogHeader>
+                                                <AlertDialogFooter>
+                                                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                                    <AlertDialogAction
+                                                        onClick={() => handleEliminar(lote)}
+                                                        className="bg-red-500 hover:bg-red-600"
+                                                    >
+                                                        Eliminar Lote
+                                                    </AlertDialogAction>
+                                                </AlertDialogFooter>
+                                            </AlertDialogContent>
+                                        </AlertDialog>
                                     </div>
                                 </td>
                             </tr>
