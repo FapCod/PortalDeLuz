@@ -26,6 +26,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import { toast } from "sonner"
 
 type ReciboConRelaciones = Recibo & { lote: Lote; tarifa: TarifaMensual }
 
@@ -56,7 +57,6 @@ export function PagosClient({ recibos, tarifas }: Props) {
 
     const [showBulkWA, setShowBulkWA] = useState(false)
     const [bulkIndex, setBulkIndex] = useState(0)
-    const [showDeleteMant, setShowDeleteMant] = useState(false)
     const PER_PAGE = 15
 
     const filtered = recibos.filter((r) => {
@@ -117,7 +117,9 @@ export function PagosClient({ recibos, tarifas }: Props) {
     function handleWhatsApp(r: ReciboConRelaciones) {
         const celular = r.lote?.celular
         if (!celular) {
-            window.alert("Este vecino no tiene número de celular registrado.\n\nAgrégalo en Lotes/Vecinos primero.")
+            toast.warning("Número no registrado", {
+                description: "Este vecino no tiene un número de celular registrado. Agrégalo en Lotes/Vecinos primero.",
+            })
             return
         }
         const nombre = r.lote?.nombres ?? ""
@@ -208,15 +210,61 @@ export function PagosClient({ recibos, tarifas }: Props) {
                 >
                     Solo Mant.
                 </button>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDeleteMant(!showDeleteMant)}
-                    className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 text-xs"
-                >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Eliminar Mant.
-                </Button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={selectedPeriod === "TODOS" || isPending || (() => {
+                                const currentTarifaId = parseInt(selectedPeriod)
+                                return !recibos.some(r => r.tarifa_id === currentTarifaId && r.lote?.tipo_servicio === "SOLO_MANTENIMIENTO")
+                            })()}
+                            className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50 text-xs"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Eliminar Mant.
+                        </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader>
+                            <AlertDialogTitle className="flex items-center gap-2">
+                                <AlertTriangle className="w-5 h-5 text-red-600" />
+                                ¿Eliminar mantenimientos de {(() => {
+                                    const t = tarifas.find(t => t.id.toString() === selectedPeriod)
+                                    return t ? formatPeriodo(t.periodo) : ""
+                                })()}?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Estás a punto de eliminar masivamente todos los recibos de tipo "**Solo Mantenimiento**" correspondientes al período de <span className="font-bold text-gray-900 capitalize">{(() => {
+                                    const t = tarifas.find(t => t.id.toString() === selectedPeriod)
+                                    return t ? formatPeriodo(t.periodo) : ""
+                                })()}</span>.
+                                <br /><br />
+                                <span className="font-semibold text-red-600">Esta acción no se puede deshacer.</span>
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                                onClick={() => {
+                                    const tarifaId = parseInt(selectedPeriod)
+                                    if (isNaN(tarifaId)) return
+                                    startTransition(async () => {
+                                        const result = await eliminarRecibosMantenimiento(tarifaId)
+                                        if (result.error) {
+                                            toast.error("Error al eliminar", {
+                                                description: result.error
+                                            })
+                                        }
+                                    })
+                                }}
+                                className="bg-red-500 hover:bg-red-600"
+                            >
+                                Sí, eliminar mantenimientos
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
                 <div className="flex-1" />
                 <Button
                     variant="outline"
@@ -231,77 +279,6 @@ export function PagosClient({ recibos, tarifas }: Props) {
                     Cobrar masivo ({pendientesConCelular.length})
                 </Button>
             </div>
-
-            {/* Delete maintenance by period */}
-            {showDeleteMant && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                        <h3 className="font-semibold text-red-800 flex items-center gap-2">
-                            <Trash2 className="w-4 h-4" />
-                            Eliminar recibos de mantenimiento por período
-                        </h3>
-                        <Button variant="ghost" size="sm" onClick={() => setShowDeleteMant(false)} className="text-gray-500">
-                            <X className="w-4 h-4" />
-                        </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        {Array.from(new Set(recibos.map((r) => r.tarifa_id))).map((tarifaId) => {
-                            const tarifa = recibos.find((r) => r.tarifa_id === tarifaId)?.tarifa
-                            const mantCount = recibos.filter(
-                                (r) => r.tarifa_id === tarifaId && r.lote?.tipo_servicio === "SOLO_MANTENIMIENTO"
-                            ).length
-                            if (!tarifa || mantCount === 0) return null
-                            return (
-                                <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                        <Button
-                                            key={tarifaId}
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={isPending}
-                                            className="border-red-300 text-red-700 hover:bg-red-100 gap-1.5"
-                                        >
-                                            <Trash2 className="w-3.5 h-3.5" />
-                                            {formatPeriodo(tarifa.periodo)} ({mantCount})
-                                        </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle className="flex items-center gap-2">
-                                                <AlertTriangle className="w-5 h-5 text-red-600" />
-                                                ¿Eliminar recibos de mantenimiento?
-                                            </AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                Se eliminarán los <span className="font-bold text-gray-900">{mantCount} recibos</span> de SOLO MANTENIMIENTO del período <span className="font-bold text-gray-900 capitalize">{formatPeriodo(tarifa.periodo)}</span>.
-                                                <br /><br />
-                                                <span className="font-semibold text-red-600">Esta acción no se puede deshacer.</span>
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                            <AlertDialogAction
-                                                onClick={() => {
-                                                    startTransition(async () => {
-                                                        const result = await eliminarRecibosMantenimiento(tarifaId)
-                                                        if (result.error) {
-                                                            window.alert(result.error)
-                                                        } else {
-                                                            setShowDeleteMant(false)
-                                                        }
-                                                    })
-                                                }}
-                                                className="bg-red-500 hover:bg-red-600"
-                                            >
-                                                Eliminar {mantCount} recibos
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            )
-                        })}
-                    </div>
-                </div>
-            )}
 
             {/* Search and Period Filter */}
             <div className="flex flex-col sm:flex-row gap-3">
